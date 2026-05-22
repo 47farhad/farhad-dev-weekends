@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 from parser import parse_line
 
-def process_logs(input_filepath, output_dir, chunk_size=500):
+def process_logs(data_dir, output_dir, chunk_size=500):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -13,25 +13,36 @@ def process_logs(input_filepath, output_dir, chunk_size=500):
     total_skipped = 0
     updates_count = 0
 
-    print(f"Reading logs from: {input_filepath}")
+    print(f"Reading logs from directory: {data_dir}")
     print(f"Saving DataFrame to: {output_dir}")
 
-    with open(input_filepath, 'r') as f:
-        for line in f:
-            parsed = parse_line(line)
-            if parsed is None:
-                # Random noise skipped
-                total_skipped += 1
-                continue
-                
-            chunk_data.append(parsed)
-            total_processed += 1
-
-            if len(chunk_data) == chunk_size:
-                new_df = pd.DataFrame(chunk_data)
-                complete_df = pd.concat([complete_df, new_df], ignore_index=True) if not complete_df.empty else new_df
-                chunk_data = []
-                updates_count += 1
+    for filename in os.listdir(data_dir):
+        input_filepath = os.path.join(data_dir, filename)
+        if not os.path.isfile(input_filepath):
+            continue
+            
+        print(f"Processing file: {filename}")
+        try:
+            with open(input_filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parsed = parse_line(line)
+                    if parsed is None:
+                        # Random noise skipped
+                        total_skipped += 1
+                        continue
+                        
+                    chunk_data.append(parsed)
+                    total_processed += 1
+        
+                    if len(chunk_data) == chunk_size:
+                        new_df = pd.DataFrame(chunk_data)
+                        complete_df = pd.concat([complete_df, new_df], ignore_index=True) if not complete_df.empty else new_df
+                        chunk_data = []
+                        updates_count += 1
+        except UnicodeDecodeError:
+            print(f"Skipping {filename}: Not a valid text file")
+        except Exception as e:
+            print(f"Error reading {filename}: {e}")
 
     # Process remaining
     if chunk_data:
@@ -79,11 +90,11 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     
-    input_log = os.path.join(project_root, 'data', 'mock_server_logs.txt')
+    data_dir = os.path.join(project_root, 'data')
     out_dir = os.path.join(project_root, 'processed_data')
     
-    if not os.path.exists(input_log):
-        print(f"Error: Log file not found at {input_log}")
+    if not os.path.exists(data_dir):
+        print(f"Error: Data directory not found at {data_dir}")
         sys.exit(1)
         
-    process_logs(input_log, out_dir, chunk_size=500)
+    process_logs(data_dir, out_dir, chunk_size=500)
