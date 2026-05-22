@@ -1,5 +1,53 @@
 import json
 import re
+from datetime import datetime, timezone
+
+def parse_timestamp(ts):
+    if not ts: return None
+    ts_str = str(ts).strip()
+    if ts_str.isdigit():
+        return datetime.fromtimestamp(int(ts_str), tz=timezone.utc)
+    for fmt in ['%Y-%m-%dT%H:%M:%SZ', '%Y/%m/%d %H:%M:%S', '%d-%b-%Y %H:%M:%S']:
+        try:
+            dt = datetime.strptime(ts_str, fmt)
+            if not dt.tzinfo: dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            pass
+    return None
+
+def format_values(parsed):
+    if parsed is None:
+        return None
+        
+    status = parsed.get("status")
+    if status is not None and status != '-':
+        try:
+            parsed["status"] = int(status)
+        except (ValueError, TypeError):
+            parsed["status"] = None
+    elif status == '-':
+        parsed["status"] = None
+
+    latency = parsed.get("latency")
+    if latency is not None:
+        latency_str = str(latency).strip().lower()
+        try:
+            if latency_str.endswith('ms'):
+                parsed["latency"] = float(latency_str[:-2])
+            elif latency_str.endswith('s'):
+                parsed["latency"] = float(latency_str[:-1]) * 1000.0
+            else:
+                parsed["latency"] = float(latency_str)
+        except ValueError:
+            parsed["latency"] = None
+
+    timestamp = parsed.get("timestamp")
+    if timestamp is not None:
+        parsed["timestamp"] = parse_timestamp(timestamp)
+
+    return parsed
+
 
 def parse_text_line(line):
     # Find IP to separate timestamp
@@ -63,7 +111,7 @@ def parse_text_line(line):
     if status is None:
         is_corrupt = True
 
-    return {
+    return format_values({
         "raw_line": line,
         "timestamp": ts_str,
         "ip": ip,
@@ -72,7 +120,7 @@ def parse_text_line(line):
         "status": status,
         "latency": latency,
         "is_corrupt": is_corrupt
-    }
+    })
 
 def parse_line(line):
     """
@@ -90,27 +138,27 @@ def parse_line(line):
             required_keys = {"timestamp", "ip", "method", "path", "status", "latency_ms"}
             
             if required_keys.issubset(data.keys()):
-                return {
+                return format_values({
                     "raw_line": line,
                     "timestamp": data["timestamp"],
                     "ip": data["ip"],
                     "method": data["method"],
                     "path": data["path"],
                     "status": data["status"],
-                    "latency": f"{data['latency_ms']}ms",
+                    "latency": data["latency_ms"],
                     "is_corrupt": False
-                }
+                })
             else:
-                return {
+                return format_values({
                     "raw_line": line,
                     "timestamp": data.get("timestamp"),
                     "ip": data.get("ip"),
                     "method": data.get("method"),
                     "path": data.get("path"),
                     "status": data.get("status"),
-                    "latency": f"{data.get('latency_ms')}ms" if data.get("latency_ms") else None,
+                    "latency": data.get("latency_ms"),
                     "is_corrupt": True
-                }
+                })
         except json.JSONDecodeError:
             pass # fallback to text parsing, though unlikely for '{}' wrapper
             

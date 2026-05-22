@@ -45,6 +45,13 @@ def process_logs(input_filepath, output_dir, chunk_size=500):
     # Build and save complete DataFrame
     if all_data:
         complete_df = pd.DataFrame(all_data)
+        
+        # Ensure correct string types for complete DataFrame too
+        string_cols = ['raw_line', 'ip', 'method', 'path']
+        for col in string_cols:
+            if col in complete_df.columns:
+                complete_df[col] = complete_df[col].astype("string")
+                
         complete_output_path = os.path.join(output_dir, "complete_logs.pkl")
         complete_df.to_pickle(complete_output_path)
         print(f"\nSaved complete DataFrame to: {complete_output_path}")
@@ -70,7 +77,12 @@ def process_logs(input_filepath, output_dir, chunk_size=500):
 def save_chunk(data, output_dir, chunk_index):
     df = pd.DataFrame(data)
     
-    # Ensure correct types or consistency where needed.
+    # Ensure correct string types
+    string_cols = ['raw_line', 'ip', 'method', 'path']
+    for col in string_cols:
+        if col in df.columns:
+            df[col] = df[col].astype("string")
+    
     # Latency and Status can sometimes be strings or objects due to None/missing values,
     # but pandas handles this gracefully.
     
