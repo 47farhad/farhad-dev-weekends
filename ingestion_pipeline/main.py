@@ -8,13 +8,13 @@ def process_logs(input_filepath, output_dir, chunk_size=500):
         os.makedirs(output_dir)
 
     chunk_data = []
-    all_data = []
-    chunk_index = 1
+    complete_df = pd.DataFrame()
     total_processed = 0
     total_skipped = 0
+    updates_count = 0
 
     print(f"Reading logs from: {input_filepath}")
-    print(f"Saving DataFrames to: {output_dir}")
+    print(f"Saving DataFrame to: {output_dir}")
 
     with open(input_filepath, 'r') as f:
         for line in f:
@@ -25,27 +25,27 @@ def process_logs(input_filepath, output_dir, chunk_size=500):
                 continue
                 
             chunk_data.append(parsed)
-            all_data.append(parsed)
             total_processed += 1
 
             if len(chunk_data) == chunk_size:
-                save_chunk(chunk_data, output_dir, chunk_index)
-                chunk_index += 1
+                new_df = pd.DataFrame(chunk_data)
+                complete_df = pd.concat([complete_df, new_df], ignore_index=True) if not complete_df.empty else new_df
                 chunk_data = []
+                updates_count += 1
 
-    # Save remaining
+    # Process remaining
     if chunk_data:
-        save_chunk(chunk_data, output_dir, chunk_index)
+        new_df = pd.DataFrame(chunk_data)
+        complete_df = pd.concat([complete_df, new_df], ignore_index=True) if not complete_df.empty else new_df
+        updates_count += 1
 
     print(f"Finished processing!")
-    print(f"Total lines ingested into DataFrames: {total_processed}")
+    print(f"Total lines ingested into DataFrame: {total_processed}")
     print(f"Total lines skipped (random noise): {total_skipped}")
-    print(f"Total DataFrame chunks generated: {chunk_index if chunk_data else chunk_index - 1}")
+    print(f"Total DataFrame updates: {updates_count}")
 
-    # Build and save complete DataFrame
-    if all_data:
-        complete_df = pd.DataFrame(all_data)
-        
+    # Process and save complete DataFrame
+    if not complete_df.empty:
         # Ensure correct string types for complete DataFrame too
         string_cols = ['raw_line', 'ip', 'method', 'path']
         for col in string_cols:
@@ -72,22 +72,6 @@ def process_logs(input_filepath, output_dir, chunk_size=500):
         print("=" * 50)
         complete_df.info()
         print("=" * 50 + "\n")
-
-
-def save_chunk(data, output_dir, chunk_index):
-    df = pd.DataFrame(data)
-    
-    # Ensure correct string types
-    string_cols = ['raw_line', 'ip', 'method', 'path']
-    for col in string_cols:
-        if col in df.columns:
-            df[col] = df[col].astype("string")
-    
-    # Latency and Status can sometimes be strings or objects due to None/missing values,
-    # but pandas handles this gracefully.
-    
-    output_path = os.path.join(output_dir, f"chunk_{chunk_index:04d}.pkl")
-    df.to_pickle(output_path)
 
 
 if __name__ == "__main__":
